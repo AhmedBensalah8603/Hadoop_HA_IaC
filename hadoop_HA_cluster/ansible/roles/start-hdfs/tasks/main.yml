@@ -1,0 +1,66 @@
+---
+- name: 1. Format Primary NameNode (Only if not formatted)
+  command: "{{ hadoop_home }}/bin/hdfs namenode -format -force -nonInteractive"
+  args:
+    creates: /usr/local/hadoop/data/nameNode/current
+  become_user: "{{ cluster_user }}"
+
+- name: 2. Start Primary NameNode
+  shell: "nohup {{ hadoop_home }}/bin/hdfs --daemon start namenode < /dev/null > /dev/null 2>&1 &"
+  become_user: "{{ cluster_user }}"
+  async: 10
+  poll: 0
+
+- name: 2b. WAIT for Primary NameNode port to open
+  wait_for:
+    host: "{{ groups['namenode'][0] }}"
+    port: 8020
+    delay: 5
+    timeout: 60
+  # This ensures the Primary is actually LISTENING before moving on
+
+- name: 3. Bootstrap Standby NameNode
+  shell: "{{ hadoop_home }}/bin/hdfs namenode -bootstrapStandby -nonInteractive"
+  delegate_to: StandBy
+  become_user: "{{ cluster_user }}"
+  args:
+    creates: /usr/local/hadoop/data/nameNode/current/VERSION
+
+- name: 4. Start Standby NameNode
+  shell: "{{ hadoop_home }}/bin/hdfs --daemon start namenode"
+  delegate_to: StandBy
+  become_user: "{{ cluster_user }}"
+  register: standby_start
+  # Ignore failure if the error message says it's already running
+  failed_when: 
+    - standby_start.rc != 0 
+    - "'is running as process' not in standby_start.stderr"
+
+- name: 5. Format and Start ZKFC (Automatic Failover)
+  shell: |
+    {{ hadoop_home }}/bin/hdfs zkfc -formatZK -nonInteractive || true
+    {{ hadoop_home }}/bin/hdfs --daemon start zkfc
+  become_user: "{{ cluster_user }}"
+  register: zkfc_start
+  failed_when:
+    - zkfc_start.rc != 0
+    - "'is running as process' not in zkfc_start.stderr"
+
+- name: 6. Start ZKFC on StandBy
+  shell: "{{ hadoop_home }}/bin/hdfs --daemon start zkfc"
+  delegate_to: StandBy
+  become_user: "{{ cluster_user }}"
+
+- name: 7. Start DataNodes
+  shell: "{{ hadoop_home }}/sbin/hadoop-daemons.sh start datanode"
+  become_user: "{{ cluster_user }}"
+
+- name: 8. Ensure NameNode (nn1) is Active
+  shell: |
+    # Check if nn1 is already active
+    if ! {{ hadoop_home }}/bin/hdfs haadmin -getServiceState nn1 | grep -q 'active'; then
+      # Force nn2 to standby and nn1 to active
+      {{ hadoop_home }}/bin/hdfs haadmin -failover nn2 nn1
+    fi
+  become_user: "{{ cluster_user }}"
+  ignore_errors: yes

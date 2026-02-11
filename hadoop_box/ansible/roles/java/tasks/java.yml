@@ -1,0 +1,13 @@
+- name: Install Java
+  apt:
+    name: openjdk-8-jdk
+    state: present
+    update_cache: true
+
+- name: Set JAVA_HOME
+  copy:
+    dest: /etc/profile.d/java.sh
+    content: |
+      export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+      export PATH=$JAVA_HOME/bin:$PATH
+    mode: '0755'

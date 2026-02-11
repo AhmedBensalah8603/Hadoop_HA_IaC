@@ -1,0 +1,5 @@
+---
+- name: Safe Cluster Restart
+  hosts: NameNode
+  roles:
+    - cluster-boot 

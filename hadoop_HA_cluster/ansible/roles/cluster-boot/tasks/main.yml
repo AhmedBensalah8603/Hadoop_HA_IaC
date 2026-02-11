@@ -1,0 +1,66 @@
+---
+- name: Ensure all services are stopped for a clean boot
+  shell: |
+    /usr/local/hadoop/sbin/stop-yarn.sh || true
+    /usr/local/hadoop/sbin/stop-dfs.sh || true
+    ps aux | grep -iE 'namenode|zkfc|journalnode' | grep -v grep | awk '{print $2}' | xargs kill -9 || true
+    rm -f /tmp/hadoop-{{ cluster_user }}-namenode.pid
+    rm -f /tmp/hadoop-{{ cluster_user }}-zkfc.pid
+    rm -f /tmp/hadoop-{{ cluster_user }}-journalnode.pid
+  become_user: "{{ cluster_user }}"
+  ignore_errors: yes
+
+- name: 1. Start ZooKeeper on all nodes
+  shell: "/usr/local/zookeeper/bin/zkServer.sh restart"
+  become_user: "{{ cluster_user }}"
+
+- name: 2. Start HDFS
+  shell: "/usr/local/hadoop/sbin/start-dfs.sh"
+  become_user: "{{ cluster_user }}"
+
+- name: 3. Wait for an Active NameNode
+  shell: |
+    source /home/{{ cluster_user }}/.bashrc
+    for i in {1..20}; do
+      {{ hadoop_home }}/bin/hdfs haadmin -getServiceState nn1 | grep -q 'active' && exit 0
+      {{ hadoop_home }}/bin/hdfs haadmin -getServiceState nn2 | grep -q 'active' && exit 0
+      sleep 5
+    done
+    exit 1
+  args:
+    executable: /bin/bash
+  become_user: "{{ cluster_user }}"
+
+- name: 4. Start YARN and HistoryServer
+  include_role:
+    name: start-yarn
+
+- name: 5a. Wait for RM Admin ports to be ready
+  wait_for:
+    host: "{{ item }}"
+    port: 8033
+    state: started
+    timeout: 60
+  loop:
+    - NameNode
+    - StandBy
+
+- name: 5b. Get RM1 state
+  command: "bin/yarn rmadmin -getServiceState rm1"
+  args:
+    chdir: "{{ hadoop_home }}"
+  register: rm1_state
+  become_user: "{{ cluster_user }}"
+  changed_when: false
+
+- name: 5c. Force Failover to RM1 if it is Standby
+  shell: |
+    # Use 'yes' to automatically answer the Y/N prompt
+    yes Y | bin/yarn rmadmin -transitionToStandby rm2 --forcemanual || true
+    yes Y | bin/yarn rmadmin -transitionToActive rm1 --forceactive --forcemanual
+  args:
+    executable: /bin/bash
+    chdir: "{{ hadoop_home }}"
+  become_user: "{{ cluster_user }}"
+  when: "'active' not in rm1_state.stdout"
+  ignore_errors: yes

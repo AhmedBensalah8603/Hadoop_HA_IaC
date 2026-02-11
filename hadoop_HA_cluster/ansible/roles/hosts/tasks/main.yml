@@ -1,0 +1,20 @@
+- name: Remove all loopback entries except 127.0.0.1
+  become: true
+  lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.(?!0\.0\.1).*'
+    state: absent
+    backrefs: yes
+
+- name: Ensure Hadoop cluster hosts are present
+  become: true
+  lineinfile:
+    path: /etc/hosts
+    line: "{{ item.ip }} {{ item.name }}"
+    state: present
+    create: yes
+  loop:
+    - { ip: "192.168.56.10", name: "NameNode" }
+    - { ip: "192.168.56.11", name: "DataNode1" }
+    - { ip: "192.168.56.12", name: "DataNode2" }
+    - { ip: "192.168.56.13", name: "StandBy" }

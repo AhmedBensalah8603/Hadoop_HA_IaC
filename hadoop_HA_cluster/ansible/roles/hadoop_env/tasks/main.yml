@@ -1,0 +1,50 @@
+---
+- name: Fix Hadoop directory ownership
+  file:
+    path: /usr/local/hadoop
+    owner: "{{ cluster_user }}"
+    group: "{{ cluster_user }}"
+    recurse: yes
+  become: true
+
+- name: Ensure Hadoop environment variables are in user's bashrc
+  block:
+    - name: Set HADOOP_HOME and PATH in .bashrc
+      lineinfile:
+        path: "/home/{{ cluster_user }}/.bashrc"
+        create: yes
+        line: "{{ item }}"
+        state: present
+        insertafter: EOF
+      loop:
+        - 'export HADOOP_HOME=/usr/local/hadoop'
+        - 'export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop'
+        - 'export HADOOP_MAPRED_HOME=$HADOOP_HOME'
+        - 'export HADOOP_COMMON_HOME=$HADOOP_HOME'
+        - 'export HADOOP_HDFS_HOME=$HADOOP_HOME'
+        - 'export HADOOP_YARN_HOME=$HADOOP_HOME'
+        - 'export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin'
+        - 'export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64'
+        - 'export PATH=$JAVA_HOME/bin:$PATH'
+      become: yes
+      become_user: "{{ cluster_user }}"
+
+    - name: Also add to .bash_profile if it exists
+      lineinfile:
+        path: "/home/{{ cluster_user }}/.bash_profile"
+        create: yes
+        line: "{{ item }}"
+        state: present
+        insertafter: EOF
+      loop:
+        - 'export HADOOP_HOME=/usr/local/hadoop'
+        - 'export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop'
+        - 'export HADOOP_MAPRED_HOME=$HADOOP_HOME'
+        - 'export HADOOP_COMMON_HOME=$HADOOP_HOME'
+        - 'export HADOOP_HDFS_HOME=$HADOOP_HOME'
+        - 'export HADOOP_YARN_HOME=$HADOOP_HOME'
+        - 'export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin'
+        - 'export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64'
+        - 'export PATH=$JAVA_HOME/bin:$PATH'
+      become: yes
+      become_user: "{{ cluster_user }}"

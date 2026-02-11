@@ -1,0 +1,39 @@
+---
+- name: Ensure Hadoop data directories exist
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ cluster_user }}"
+    group: "{{ cluster_user }}"
+    mode: '0755'
+  loop:
+    - /usr/local/hadoop/data/nameNode
+    - /usr/local/hadoop/data/dataNode
+    - /usr/local/hadoop/data/journalnode
+  become: yes
+
+- name: Deploy Hadoop XML configurations
+  template:
+    src: "{{ item }}.j2"
+    dest: "/usr/local/hadoop/etc/hadoop/{{ item }}"
+    owner: "{{ cluster_user }}"
+    group: "{{ cluster_user }}"
+    mode: '0644'
+  loop:
+    - core-site.xml
+    - hdfs-site.xml
+
+- name: Deploy workers file
+  template:
+    src: workers.j2
+    dest: "/usr/local/hadoop/etc/hadoop/workers"
+    owner: "{{ cluster_user }}"
+    group: "{{ cluster_user }}"
+    mode: '0644'
+
+- name: Set JAVA_HOME in hadoop-env.sh
+  lineinfile:
+    path: /usr/local/hadoop/etc/hadoop/hadoop-env.sh
+    regexp: '^#? export JAVA_HOME='
+    line: 'export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64'
+    state: present

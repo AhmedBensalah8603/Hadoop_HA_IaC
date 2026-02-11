@@ -1,0 +1,41 @@
+---
+- name: Start YARN and HistoryServer
+  shell: |
+    # Start YARN
+    nohup /usr/local/hadoop/sbin/start-yarn.sh > /usr/local/hadoop/logs/yarn-start.out 2>&1 &
+    # Start HistoryServer for job persistence
+    nohup /usr/local/hadoop/bin/mapred --daemon start historyserver > /usr/local/hadoop/logs/historyserver-start.out 2>&1 &
+    
+    # Wait for ResourceManager Admin port (8033) to be ready
+    for i in {1..15}; do
+      if command -v nc &>/dev/null; then
+        nc -z localhost 8033 && break
+      else
+        (echo > /dev/tcp/localhost/8033) >/dev/null 2>&1 && break
+      fi
+      sleep 2
+    done
+  async: 60
+  poll: 5
+  become: yes
+  become_user: "{{ cluster_user }}"
+  environment:
+    JAVA_HOME: "/usr/lib/jvm/java-8-openjdk-amd64"
+    HADOOP_HOME: "/usr/local/hadoop"
+    HADOOP_SSH_OPTS: "-o StrictHostKeyChecking=no"
+    PATH: "/usr/local/hadoop/bin:/usr/local/hadoop/sbin:{{ ansible_env.PATH }}"
+
+- name: Force NameNode (rm1) to be Active ResourceManager
+  shell: |
+    # Only transition if rm1 is not already active
+    STATE=$({{ hadoop_home }}/bin/yarn rmadmin -getServiceState rm1)
+    if [ "$STATE" != "active" ]; then
+      {{ hadoop_home }}/bin/yarn rmadmin -transitionToActive rm1 --forceactive
+    fi
+  become_user: "{{ cluster_user }}"
+  register: rm_status
+  # We ignore "Refusing to manually manage HA state" errors if it happens
+  failed_when: 
+    - rm_status.rc != 0 
+    - "'Refusing to manually manage HA state' not in rm_status.stderr"
+  ignore_errors: yes

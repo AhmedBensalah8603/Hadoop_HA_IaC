@@ -1,0 +1,42 @@
+- name: Install dependencies
+  apt:
+    name: wget
+    state: present
+    update_cache: true
+
+- name: Check if Hadoop is already installed
+  stat:
+    path: /usr/local/hadoop
+  register: hadoop_installed
+
+- name: Download Hadoop tarball
+  get_url:
+    url: "https://archive.apache.org/dist/hadoop/common/hadoop-3.3.6/hadoop-3.3.6.tar.gz"
+    dest: /tmp/hadoop-3.3.6.tar.gz
+    mode: '0644'
+  when: not hadoop_installed.stat.exists
+
+- name: Extract Hadoop tarball
+  unarchive:
+    src: /tmp/hadoop-3.3.6.tar.gz
+    dest: /usr/local/
+    remote_src: yes
+  when: not hadoop_installed.stat.exists
+
+- name: Move Hadoop to final location
+  command: mv /usr/local/hadoop-3.3.6 /usr/local/hadoop
+  args:
+    removes: /usr/local/hadoop-3.3.6
+  when: not hadoop_installed.stat.exists
+
+- name: Set Hadoop environment variables
+  copy:
+    dest: /etc/profile.d/hadoop.sh
+    content: |
+      export HADOOP_HOME=/usr/local/hadoop
+      export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
+      export HADOOP_MAPRED_HOME=$HADOOP_HOME
+      export HADOOP_COMMON_HOME=$HADOOP_HOME
+      export HADOOP_HDFS_HOME=$HADOOP_HOME
+      export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
+    mode: '0755'

@@ -1,0 +1,51 @@
+---
+# PLAY 1: Infrastructure and Configuration
+# - name: Infrastructure and Configuration
+#   hosts: all
+#   roles:
+#     - ssh          
+#     - hosts        
+#     - hadoop_env   
+#     - hdfs         
+#     - yarn         
+
+- name: Infrastructure and Configuration
+  hosts: all
+  roles:
+    - ssh
+    - hosts
+    - hadoop_env
+    - hdfs
+    - yarn
+
+- name: Setup ZooKeeper Quorum
+  hosts: zookeeper
+  roles:
+    - zookeeper
+
+- name: Start ZooKeeper and JournalNodes
+  hosts: journalnodes
+  become: yes
+  tasks:
+    - name: Start ZooKeeper
+      shell: "{{ zk_home }}/bin/zkServer.sh start || true"
+      become_user: "{{ cluster_user }}"
+      
+    - name: Start JournalNode
+      shell: |
+        export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+        nohup {{ hadoop_home }}/bin/hdfs --daemon start journalnode > /dev/null 2>&1 &
+      become_user: "{{ cluster_user }}"
+
+    - name: Wait for local JournalNode port
+      wait_for:
+        host: 0.0.0.0
+        port: 8485
+        delay: 5
+        timeout: 60
+
+- name: HDFS Formatting and Initial Startup
+  hosts: NameNode
+  roles:
+    - start-hdfs   
+    - start-yarn

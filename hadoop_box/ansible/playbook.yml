@@ -1,0 +1,7 @@
+- name: Hadoop Base Box
+  hosts: all
+  become: true
+  roles:
+    - java
+    - hadoop
+    - zookeeper

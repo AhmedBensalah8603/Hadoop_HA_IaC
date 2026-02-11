@@ -1,0 +1,37 @@
+---
+- name: Ensure ZooKeeper directories exist
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ cluster_user }}"
+    group: "{{ cluster_user }}"
+    mode: '0755'
+  loop:
+    - "{{ zk_data_dir }}"
+    - "{{ zk_home }}/logs"
+  become: yes
+
+- name: Configure ZooKeeper zoo.cfg
+  copy: # Use copy instead of template when using 'content'
+    dest: "{{ zk_home }}/conf/zoo.cfg"
+    content: |
+      tickTime=2000
+      dataDir={{ zk_data_dir }}
+      clientPort=2181
+      initLimit=5
+      syncLimit=2
+      server.1=NameNode:2888:3888
+      server.2=StandBy:2888:3888
+      server.3=DataNode1:2888:3888
+    owner: "{{ cluster_user }}"
+    group: "{{ cluster_user }}"
+    mode: '0644'
+  become: yes
+
+- name: Create myid file
+  copy:
+    dest: "{{ zk_data_dir }}/myid"
+    content: "{{ zkid }}"
+    owner: "{{ cluster_user }}"
+    group: "{{ cluster_user }}"
+  become: yes

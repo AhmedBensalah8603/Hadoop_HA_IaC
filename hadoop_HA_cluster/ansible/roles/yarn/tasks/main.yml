@@ -1,0 +1,35 @@
+---
+- name: Ensure Hadoop log directory exists
+  file:
+    path: /usr/local/hadoop/logs
+    state: directory
+    owner: "{{ cluster_user }}"
+    group: "{{ cluster_user }}"
+    mode: '0775'
+    recurse: yes
+
+- name: Set Environment Variables in hadoop-env.sh
+  blockinfile:
+    path: /usr/local/hadoop/etc/hadoop/hadoop-env.sh
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - HADOOP ENV"
+    block: |
+      export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+      export HADOOP_CLASSPATH=/usr/local/hadoop/share/hadoop/mapreduce/hadoop-mapreduce-client-app-3.3.6.jar:$HADOOP_CLASSPATH
+
+- name: Set JAVA_HOME in yarn-env.sh
+  lineinfile:
+    path: /usr/local/hadoop/etc/hadoop/yarn-env.sh
+    regexp: '^#? export JAVA_HOME='
+    line: 'export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64'
+    state: present
+
+- name: Deploy YARN and MapReduce configurations
+  template:
+    src: "{{ item }}.j2"
+    dest: "/usr/local/hadoop/etc/hadoop/{{ item }}"
+    owner: "{{ cluster_user }}"
+    group: "{{ cluster_user }}"
+    mode: '0644'
+  loop:
+    - yarn-site.xml
+    - mapred-site.xml
