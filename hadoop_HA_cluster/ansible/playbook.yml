@@ -1,14 +1,4 @@
----
-# PLAY 1: Infrastructure and Configuration
-# - name: Infrastructure and Configuration
-#   hosts: all
-#   roles:
-#     - ssh          
-#     - hosts        
-#     - hadoop_env   
-#     - hdfs         
-#     - yarn         
-
+--- 
 - name: Infrastructure and Configuration
   hosts: all
   roles:
